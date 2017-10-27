@@ -1,0 +1,2 @@
+# BCbuddy
+BootCamp Discord Bot
