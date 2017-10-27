@@ -16,6 +16,24 @@ namespace DiscordApp
 {
     public class Commands
     {
+        public Commands()
+        {
+
+        }
+        
+        private Dictionary<string, BootCamper> bootcampers;
+        public Dictionary<string, BootCamper> Bootcampers
+        {
+            get
+            {
+                if(bootcampers == null)
+                {
+                    bootcampers = new Dictionary<string, BootCamper>();
+                }
+                return bootcampers;
+            }
+        }
+
         DataAccess Data = new DataAccess();
 
         [Command("ping")] // let's define this method as a command
@@ -100,6 +118,8 @@ namespace DiscordApp
             }
 
             Data.Login(user, CurrentTime);
+            BootCamper bc = Data.ViewBootCamperByUsername(user);
+            Bootcampers.Add(user, bc);
             string Message = String.Format("{0} {1} you have been clocked in at {2}", Greeting, user, CurrentTime);
             await lCommandContext.TriggerTypingAsync();
             await lCommandContext.RespondAsync(Message);
@@ -353,9 +373,7 @@ namespace DiscordApp
         {
             await iContext.RespondWithMessageAsync(message);
         }
-
-        int round = 0;
-
+        
         [Command("ViewTimeSheet"), Aliases("vts", "viewtimesheet")]
         public async Task ViewBootCamperTimeSheet(CommandContext lCommandContext, DiscordMember member, int count = 5)
         {
