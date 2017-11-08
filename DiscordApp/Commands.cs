@@ -11,30 +11,66 @@ using System.Collections.Specialized;
 using DSharpPlus.Entities;
 using DSharpPlus.Interactivity;
 using System.Reflection;
+using System.Threading;
 
 namespace DiscordApp
 {
     public class Commands
     {
-        public Commands()
-        {
+        Thread Time;
 
-        }
-        
+
         private Dictionary<string, BootCamper> bootcampers;
         public Dictionary<string, BootCamper> Bootcampers
         {
             get
             {
-                if(bootcampers == null)
+                if (bootcampers == null)
                 {
                     bootcampers = new Dictionary<string, BootCamper>();
                 }
                 return bootcampers;
             }
         }
-
+        public List<string> LoggedIn;
+        public List<string> loggedin
+        {
+            get
+            {
+                if(LoggedIn == null)
+                {
+                    LoggedIn = new List<string>();
+                }
+                return LoggedIn;
+            }
+        }
         DataAccess Data = new DataAccess();
+
+        public Commands()
+        {
+
+            Time = new Thread(CheckTime);
+            Time.IsBackground = true;
+        }
+
+        private void CheckTime()
+        {
+            bool running = true;
+
+            while (running)
+            {
+                if (DateTime.Now.Hour == 7)
+                {
+                    Time.Start();
+                }
+
+                if (DateTime.Now.Hour == 18)
+                {
+                    LoggedIn.Clear();
+                    Time.Abort();
+                }
+            }
+        }
 
         [Command("ping")] // let's define this method as a command
         [Description("Example ping command")] // this will be displayed to tell users what this command does when they invoke help
@@ -51,34 +87,6 @@ namespace DiscordApp
 
             // respond with ping
             await lCommandContext.RespondAsync($"{emoji} Pong! Ping: {lCommandContext.Client.Ping}ms");
-        }
-
-        [Command("poll"), Description("Run a poll with reactions.")]
-        public async Task Poll(CommandContext lCommandContext, [Description("How long should the poll last.")] TimeSpan duration, [Description("What options should people have.")] params DiscordEmoji[] options)
-        {
-            // first retrieve the interactivity module from the client
-            var interactivity = lCommandContext.Client.GetInteractivityModule();
-            var poll_options = options.Select(xe => xe.ToString());
-
-            // then let's present the poll
-            var embed = new DiscordEmbedBuilder
-            {
-                Title = "Poll time!",
-                Description = string.Join(" ", poll_options)
-            };
-            var msg = await lCommandContext.RespondAsync(embed: embed);
-
-            // add the options as reactions
-            for (var i = 0; i < options.Length; i++)
-                await msg.CreateReactionAsync(options[i]);
-
-            // collect and filter responses
-            var poll_result = await interactivity.CollectReactionsAsync(msg, duration);
-            var results = poll_result.Reactions.Where(xkvp => options.Contains(xkvp.Key))
-                .Select(xkvp => $"{xkvp.Key}: {xkvp.Value}");
-
-            // and finally post the results
-            await lCommandContext.RespondAsync(string.Join("\n", results));
         }
 
         [Command("greet"), Description("Says hi to specified user."), Aliases("sayhi", "say_hi")]
@@ -98,15 +106,16 @@ namespace DiscordApp
         public async Task Login(CommandContext lCommandContext)
         {
             await lCommandContext.ClearLastMessage();
-
             DateTime CurrentTime = DateTime.Now;
-            if(DateTime.Now.Hour == 6 || DateTime.Now.Hour == 7)
+            string user = lCommandContext.User.Username;
+            BootCamper bc = Data.ViewBootCamperByUsername(user);
+            string Greeting = "";
+
+
+            if (DateTime.Now.Hour == 6 || DateTime.Now.Hour == 7)
             {
                 CurrentTime = new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day, 08, 00, 00);
             }
-
-            string user = lCommandContext.User.Username;
-            string Greeting = "";
 
             if ((DateTime.Now.Hour > 8 && DateTime.Now.Minute > 30) || DateTime.Now.Hour > 8)
             {
@@ -117,12 +126,27 @@ namespace DiscordApp
                 Greeting = "Good morning!";
             }
 
-            Data.Login(user, CurrentTime);
-            BootCamper bc = Data.ViewBootCamperByUsername(user);
-            Bootcampers.Add(user, bc);
             string Message = String.Format("{0} {1} you have been clocked in at {2}", Greeting, user, CurrentTime);
-            await lCommandContext.TriggerTypingAsync();
-            await lCommandContext.RespondAsync(Message);
+
+            if (!loggedin.Contains(user))
+            {
+                Data.Login(user, CurrentTime);
+
+                Bootcampers.Add(user, bc);
+                loggedin.Add(user);
+                await lCommandContext.TriggerTypingAsync();
+                await lCommandContext.RespondAsync(Message);
+
+
+            }
+            else
+            {
+                string ClockedIn = String.Format("uh oh {0}!  It looks like you've already clocked in for the day.", user);
+                await lCommandContext.TriggerTypingAsync();
+                await lCommandContext.RespondWithMessageAsync(ClockedIn);
+            }
+
+
 
         }
 
@@ -252,7 +276,7 @@ namespace DiscordApp
         [Command("UpdateTime"), Description("Syntax UpdateTime <member> <Hour> <Minute> <isLogin>"), Aliases("updatetime", "UpdateLogin", "Update", "update")]
         public async Task UpdateTimeIn(CommandContext lCommandContext, [Description("Mention the bootcamper to adjust time for")] DiscordMember member, [Description("Hour to be clocked in or out at")] int Hour, [Description("Minute to be clocked in or out at")] int Minute, [Description("true for login, false for logout")] bool isLogin)
         {
-            if(Hour < 7)
+            if (Hour < 7)
             {
                 Hour += 12;
             }
@@ -373,7 +397,7 @@ namespace DiscordApp
         {
             await iContext.RespondWithMessageAsync(message);
         }
-        
+
         [Command("ViewTimeSheet"), Aliases("vts", "viewtimesheet")]
         public async Task ViewBootCamperTimeSheet(CommandContext lCommandContext, DiscordMember member, int count = 5)
         {

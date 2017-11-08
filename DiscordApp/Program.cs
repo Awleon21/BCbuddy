@@ -12,6 +12,7 @@ using DSharpPlus.EventArgs;
 using DSharpPlus.Net;
 using DSharpPlus.CommandsNext;
 using DSharpPlus.CommandsNext.Exceptions;
+using System.Threading;
 
 namespace DiscordApp
 {
@@ -138,6 +139,17 @@ namespace DiscordApp
                     Color = new DiscordColor(0XFF0000) //red
                 };
                 await e.Context.RespondAsync("", embed: embed);
+            }
+            else if(e.Exception is System.ArgumentException)
+            {
+                Program prog = new Program();
+                await e.Context.TriggerTypingAsync();
+                await e.Context.RespondAsync("Whoa, hang on a second something went wrong.  I'll be right back!");
+                await prog.Client.DisconnectAsync();
+                Thread.Sleep(1000);
+                await prog.Client.ReconnectAsync();
+                await e.Context.TriggerTypingAsync();
+                await e.Context.RespondAsync("Alright i'm back");
             }
 
             StreamWriter lWriter = new StreamWriter(_CommandLog, true);
